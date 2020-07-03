@@ -105,7 +105,8 @@ TEST(strlen_returns_correct_length, String_fixture) {
  * are equal, and if they are not, it displays a pretty-printed representation
  * of both values courtesy of C11 generics.  All comparison-type assertions have
  * this feature, so you should always get human-readable output regardless of
- * the types you are using in your tests.
+ * the types you are using in your tests, even if the type is not formally
+ * recognised by test.h.
  *
  * At this point, you may be wondering why we bothered declaring data members on
  * fixture String_fixture at all, since we're not using them to do anything that

@@ -553,53 +553,67 @@ __TEST_SNPRINTF_FUN(float, float, "%f", val)
 __TEST_SNPRINTF_FUN(double, double, "%f", val)
 __TEST_SNPRINTF_FUN(long_double, long double, "%Lf", val)
 __TEST_SNPRINTF_FUN(size_t, size_t, "%zu", val)
-__TEST_SNPRINTF_FUN(string, char *, "%s", (char *) val)
-__TEST_SNPRINTF_FUN(pointer, void *, "%p", (void *) val)
-__TEST_SNPRINTF_FUN(unknown, void *, "<unknown type at 0x%p>", &val)
+__TEST_SNPRINTF_FUN(string, char *, "%s", val)
+__TEST_SNPRINTF_FUN(pointer, void *, "%p", val)
+
+/** Call the appropriate __TEST_SNPRINTF_FUN for the specified type. */
+#define __TEST_KNOWN_SNPRINTF(TYPE, VAL) \
+        test_snprintf_ ## TYPE(VAL, TEST_MESSAGE, &test_running_pos)
+
+/**
+ * Print a properly-formatted representation of the specified pointer type to
+ * the failure message buffer.  This indirection is required to reduce the
+ * number of uintptr_t casts in the main __TEST_GENERIC_PRINT macro, which are
+ * required to silence compiler warnings about scalar -> pointer conversion.
+ * Also, the explicit casts to (char *) and (void *) are required to prevent
+ * type-checker errors if arrays are passed to this macro.
+ */
+#define __TEST_GENERIC_PRINT_PTR(VAL, REPR)                    \
+    _Generic((VAL),                                            \
+        char *:  __TEST_KNOWN_SNPRINTF(string, (char *) VAL),  \
+        void *:  __TEST_KNOWN_SNPRINTF(pointer, (void *) VAL), \
+        default: __TEST_KNOWN_SNPRINTF(string, "<unknown type> (" REPR ")"))
 
 /**
  * Print a properly-formatted representation of the specified value to the
  * failure message buffer.
  */
-#define __TEST_GENERIC_PRINT(VAL)               \
-    _Generic((VAL),                             \
-        bool:        test_snprintf_bool,        \
-        char:        test_snprintf_char,        \
-        uint8_t:     test_snprintf_uint8_t,     \
-        uint16_t:    test_snprintf_uint16_t,    \
-        uint32_t:    test_snprintf_uint32_t,    \
-        uint64_t:    test_snprintf_uint64_t,    \
-        int8_t:      test_snprintf_int8_t,      \
-        int16_t:     test_snprintf_int16_t,     \
-        int32_t:     test_snprintf_int32_t,     \
-        int64_t:     test_snprintf_int64_t,     \
-        float:       test_snprintf_float,       \
-        double:      test_snprintf_double,      \
-        long double: test_snprintf_long_double, \
-        size_t:      test_snprintf_size_t,      \
-        char *:      test_snprintf_string,      \
-        void *:      test_snprintf_pointer,     \
-        default:     test_snprintf_unknown)     \
-    (VAL, TEST_MESSAGE, &test_running_pos)
+#define __TEST_GENERIC_PRINT(VAL, REPR)                       \
+    _Generic((VAL),                                           \
+        bool:        __TEST_KNOWN_SNPRINTF(bool, VAL),        \
+        char:        __TEST_KNOWN_SNPRINTF(char, VAL),        \
+        uint8_t:     __TEST_KNOWN_SNPRINTF(uint8_t, VAL),     \
+        uint16_t:    __TEST_KNOWN_SNPRINTF(uint16_t, VAL),    \
+        uint32_t:    __TEST_KNOWN_SNPRINTF(uint32_t, VAL),    \
+        uint64_t:    __TEST_KNOWN_SNPRINTF(uint64_t, VAL),    \
+        int8_t:      __TEST_KNOWN_SNPRINTF(int8_t, VAL),      \
+        int16_t:     __TEST_KNOWN_SNPRINTF(int16_t, VAL),     \
+        int32_t:     __TEST_KNOWN_SNPRINTF(int32_t, VAL),     \
+        int64_t:     __TEST_KNOWN_SNPRINTF(int64_t, VAL),     \
+        float:       __TEST_KNOWN_SNPRINTF(float, VAL),       \
+        double:      __TEST_KNOWN_SNPRINTF(double, VAL),      \
+        long double: __TEST_KNOWN_SNPRINTF(long_double, VAL), \
+        size_t:      __TEST_KNOWN_SNPRINTF(size_t, VAL),      \
+        default:     __TEST_GENERIC_PRINT_PTR((uintptr_t) VAL, REPR))
 
 /**
  * Run an assertion to ensure that the specified COMPARISON is satisfied for
  * values A and B.  The values of A and B are saved before the comparison is
  * evaluated, so it is safe to write expressions with side effects for either.
  */
-#define __TEST_GENERIC_ASSERTION(A, COMPARISON, B)         \
-    do {                                                   \
-        int test_last_pos;                                 \
-        int test_running_pos = 0;                          \
-        typeof(A) test_var_a = (A);                        \
-        typeof(B) test_var_b = (B);                        \
-        if (!(test_var_a COMPARISON test_var_b)) {         \
-            __TEST_GENERIC_PRINT("Expression is false: "); \
-            __TEST_GENERIC_PRINT(test_var_a);              \
-            __TEST_GENERIC_PRINT(" " #COMPARISON " ");     \
-            __TEST_GENERIC_PRINT(test_var_b);              \
-            exit(EXIT_FAILURE);                            \
-        }                                                  \
+#define __TEST_GENERIC_ASSERTION(A, COMPARISON, B)                  \
+    do {                                                            \
+        int test_last_pos;                                          \
+        int test_running_pos = 0;                                   \
+        typeof(A) test_var_a = (A);                                 \
+        typeof(B) test_var_b = (B);                                 \
+        if (!(test_var_a COMPARISON test_var_b)) {                  \
+            __TEST_KNOWN_SNPRINTF(string, "Expression is false: "); \
+            __TEST_GENERIC_PRINT(test_var_a, #A);                   \
+            __TEST_KNOWN_SNPRINTF(string, " " #COMPARISON " ");     \
+            __TEST_GENERIC_PRINT(test_var_b, #B);                   \
+            exit(EXIT_FAILURE);                                     \
+        }                                                           \
     } while (0)
 
 /** Assert that value <code>A</code> is equal to value <code>B</code>. */
