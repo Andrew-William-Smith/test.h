@@ -218,9 +218,9 @@ TEST(All_assertions, Simple_fixture) {
     ASSERT_NON_NULL(TEST);
 
     // Expression is true
-    ASSERT_TRUE(true);
+    ASSERT_TRUE(1);
     // Expression is false...or is it?
-    ASSERT_FALSE(true);
+    ASSERT_FALSE(1);
 }
 
 /* Finally, now it's time to show off a bit.  In order to prevent errant tests
@@ -252,7 +252,7 @@ TEST(Segfault_does_not_crash, Simple_fixture) {
  * [PASS] (  0.000/  0s) Copy_to_dynamic_string
  * [FAIL] (  0.000/  0s) All_assertions
  * | Assertion failed at example_test.c:216
- * | Expression is true (false expected): true
+ * | Expression is true (false expected): 1
  * [HALT] (  0.000/  0s) Segfault_does_not_crash
  * | Test halted due to signal sigsegv (code 11)
  *
