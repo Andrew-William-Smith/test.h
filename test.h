@@ -333,7 +333,7 @@ static void test_run(char *name,
  *     ASSERT_NON_NULL(TEST->message);
  *     strcpy(TEST->message, "Hello!");
  *     ASSERT_STREQ(TEST->message, "Hello!");
- *     ASSERT_EQ(strlen(TEST->message, 6));
+ *     ASSERT_EQ(strlen(TEST->message), 6);
  * }
  * </pre>
  *
@@ -601,19 +601,22 @@ __TEST_SNPRINTF_FUN(pointer, void *, "%p", val)
  * values A and B.  The values of A and B are saved before the comparison is
  * evaluated, so it is safe to write expressions with side effects for either.
  */
-#define __TEST_GENERIC_ASSERTION(A, COMPARISON, B)                  \
-    do {                                                            \
-        int test_last_pos;                                          \
-        int test_running_pos = 0;                                   \
-        typeof(A) test_var_a = (A);                                 \
-        typeof(B) test_var_b = (B);                                 \
-        if (!(test_var_a COMPARISON test_var_b)) {                  \
-            __TEST_KNOWN_SNPRINTF(string, "Expression is false: "); \
-            __TEST_GENERIC_PRINT(test_var_a, #A);                   \
-            __TEST_KNOWN_SNPRINTF(string, " " #COMPARISON " ");     \
-            __TEST_GENERIC_PRINT(test_var_b, #B);                   \
-            exit(EXIT_FAILURE);                                     \
-        }                                                           \
+#define __TEST_GENERIC_ASSERTION(A, COMPARISON, B)                      \
+    do {                                                                \
+        int test_last_pos;                                              \
+        int test_running_pos = 0;                                       \
+        typeof(A) test_var_a = (A);                                     \
+        typeof(B) test_var_b = (B);                                     \
+        if (!(test_var_a COMPARISON test_var_b)) {                      \
+            __TEST_KNOWN_SNPRINTF(string,                               \
+                    "Assertion failed at " __FILE__ ":" __TEST_LINE_STR \
+                    "\n" __COLOUR_RED "| " __COLOUR_RESET);             \
+            __TEST_KNOWN_SNPRINTF(string, "Expression is false: ");     \
+            __TEST_GENERIC_PRINT(test_var_a, #A);                       \
+            __TEST_KNOWN_SNPRINTF(string, " " #COMPARISON " ");         \
+            __TEST_GENERIC_PRINT(test_var_b, #B);                       \
+            exit(EXIT_FAILURE);                                         \
+        }                                                               \
     } while (0)
 
 /** Assert that value <code>A</code> is equal to value <code>B</code>. */
