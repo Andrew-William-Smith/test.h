@@ -13,12 +13,12 @@
  * containing your test suite and you're off to the races.
  *
  * <code>test.h</code> makes use of a few fairly advanced compiler features, and
- * as such is only currently compatible with GCC and Clang.  At the expense of
- * portability, it gains a syntax similar to that of the popular Google Test C++
- * testing framework with no runtime overhead and with an extremely small
- * footprint.  (As an aside, it appears to be possible to make this framework
- * work with MSVC, but I have neither the motivation nor the Visual Studio
- * installation to test it out.)
+ * as such is only currently compatible with GCC and Clang in C11 mode.  At the
+ * expense of portability, it gains a syntax similar to that of the popular
+ * Google Test C++ testing framework with no runtime overhead and with an
+ * extremely small footprint.  (As an aside, it appears to be possible to make
+ * this framework work with MSVC, but I have neither the motivation nor the
+ * Visual Studio installation to test it out.)
  *
  * Internally, <code>test.h</code> implements tests by way of ELF constructors,
  * functions referenced in the <code>.ctors</code> of an ELF binary that are
@@ -67,6 +67,7 @@
 // We have to violate this warning to allow variadic macros to expand correctly
 #pragma GCC diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
 
+#include <inttypes.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -512,60 +513,6 @@ static void __attribute__((destructor)) test_end(void) {
             #EXPRESSION)
 
 /**
- * Assert that value <code>A</code> is equal to value <code>B</code>, where both
- * values may be formatted by the specified <code>printf</code>
- * <code>FORMAT</code> string.
- */
-#define ASSERT_EQ(A, B, FORMAT) \
-    __TEST_RUN_ASSERTION((A) == (B), \
-            "Expression is false: " FORMAT " == " FORMAT, A, B)
-
-/**
- * Assert that value <code>A</code> is not equal to value <code>B</code>, where
- * both values may be formatted by the specified <code>printf</code>
- * <code>FORMAT</code> string.
- */
-#define ASSERT_NE(A, B, FORMAT) \
-    __TEST_RUN_ASSERTION((A) != (B), \
-            "Expression is false: " FORMAT " != " FORMAT, A, B)
-
-/**
- * Assert that value <code>A</code> is greater than value <code>B</code>, where
- * both values may be formatted by the specified <code>printf</code>
- * <code>FORMAT</code> string.
- */
-#define ASSERT_GT(A, B, FORMAT) \
-    __TEST_RUN_ASSERTION((A) > (B), \
-            "Expression is false: " FORMAT " > " FORMAT, A, B)
-
-/**
- * Assert that value <code>A</code> is greater than or equal to value
- * <code>B</code>, where both values may be formatted by the specified
- * <code>printf</code> <code>FORMAT</code> string.
- */
-#define ASSERT_GE(A, B, FORMAT) \
-    __TEST_RUN_ASSERTION((A) >= (B), \
-            "Expression is false: " FORMAT " >= " FORMAT, A, B)
-
-/**
- * Assert that value <code>A</code> is less than value <code>B</code>, where
- * both values may be formatted by the specified <code>printf</code>
- * <code>FORMAT</code> string.
- */
-#define ASSERT_LT(A, B, FORMAT) \
-    __TEST_RUN_ASSERTION((A) < (B), \
-            "Expression is false: " FORMAT " < " FORMAT, A, B)
-
-/**
- * Assert that value <code>A</code> is less than or equal to value
- * <code>B</code>, where both values may be formatted by the specified
- * <code>printf</code> <code>FORMAT</code> string.
- */
-#define ASSERT_LE(A, B, FORMAT) \
-    __TEST_RUN_ASSERTION((A) <= (B), \
-            "Expression is false: " FORMAT " <= " FORMAT, A, B)
-
-/**
  * Assert that the contents of strings (<code>char *</code>) <code>A</code> and
  * <code>B</code> are equal.
  */
@@ -580,5 +527,103 @@ static void __attribute__((destructor)) test_end(void) {
 /** Assert that pointer <code>PTR</code> is not null (non-0). */
 #define ASSERT_NON_NULL(PTR) \
     __TEST_RUN_ASSERTION(PTR != NULL, "Pointer is null: " #PTR)
+
+/** Create a pretty printer function for the specified type. */
+#define __TEST_SNPRINTF_FUN(NAME, TYPE, FORMAT, ...)                        \
+    void test_snprintf_ ## NAME(TYPE val, char *buffer, int *running_pos) { \
+        int last_pos;                                                       \
+        snprintf(buffer + *running_pos,                                     \
+                __TEST_MAX_MESSAGE_SIZE - *running_pos,                     \
+                FORMAT "%n", __VA_ARGS__,  &last_pos);                      \
+        *running_pos += last_pos;                                           \
+    }
+
+// Pretty-print function definitions
+__TEST_SNPRINTF_FUN(bool, bool, "%s", (val ? "true" : "false"))
+__TEST_SNPRINTF_FUN(char, char, "%c (0x%" PRIx8 ")", val, val)
+__TEST_SNPRINTF_FUN(uint8_t, uint8_t, "%" PRIu8 " (0x%" PRIx8 ")", val, val)
+__TEST_SNPRINTF_FUN(uint16_t, uint16_t, "%" PRIu16 " (0x%" PRIx16 ")", val, val)
+__TEST_SNPRINTF_FUN(uint32_t, uint32_t, "%" PRIu32 " (0x%" PRIx32 ")", val, val)
+__TEST_SNPRINTF_FUN(uint64_t, uint64_t, "%" PRIu64 " (0x%" PRIx64 ")", val, val)
+__TEST_SNPRINTF_FUN(int8_t, int8_t, "%" PRId8, val)
+__TEST_SNPRINTF_FUN(int16_t, int16_t, "%" PRId16, val)
+__TEST_SNPRINTF_FUN(int32_t, int32_t, "%" PRId32, val)
+__TEST_SNPRINTF_FUN(int64_t, int64_t, "%" PRId64, val)
+__TEST_SNPRINTF_FUN(float, float, "%f", val)
+__TEST_SNPRINTF_FUN(double, double, "%f", val)
+__TEST_SNPRINTF_FUN(long_double, long double, "%Lf", val)
+__TEST_SNPRINTF_FUN(size_t, size_t, "%zu", val)
+__TEST_SNPRINTF_FUN(string, char *, "%s", (char *) val)
+__TEST_SNPRINTF_FUN(pointer, void *, "%p", (void *) val)
+__TEST_SNPRINTF_FUN(unknown, void *, "<unknown type at 0x%p>", &val)
+
+/**
+ * Print a properly-formatted representation of the specified value to the
+ * failure message buffer.
+ */
+#define __TEST_GENERIC_PRINT(VAL)               \
+    _Generic((VAL),                             \
+        bool:        test_snprintf_bool,        \
+        char:        test_snprintf_char,        \
+        uint8_t:     test_snprintf_uint8_t,     \
+        uint16_t:    test_snprintf_uint16_t,    \
+        uint32_t:    test_snprintf_uint32_t,    \
+        uint64_t:    test_snprintf_uint64_t,    \
+        int8_t:      test_snprintf_int8_t,      \
+        int16_t:     test_snprintf_int16_t,     \
+        int32_t:     test_snprintf_int32_t,     \
+        int64_t:     test_snprintf_int64_t,     \
+        float:       test_snprintf_float,       \
+        double:      test_snprintf_double,      \
+        long double: test_snprintf_long_double, \
+        size_t:      test_snprintf_size_t,      \
+        char *:      test_snprintf_string,      \
+        void *:      test_snprintf_pointer,     \
+        default:     test_snprintf_unknown)     \
+    (VAL, TEST_MESSAGE, &test_running_pos)
+
+/**
+ * Run an assertion to ensure that the specified COMPARISON is satisfied for
+ * values A and B.  The values of A and B are saved before the comparison is
+ * evaluated, so it is safe to write expressions with side effects for either.
+ */
+#define __TEST_GENERIC_ASSERTION(A, COMPARISON, B)         \
+    do {                                                   \
+        int test_last_pos;                                 \
+        int test_running_pos = 0;                          \
+        typeof(A) test_var_a = (A);                        \
+        typeof(B) test_var_b = (B);                        \
+        if (!(test_var_a COMPARISON test_var_b)) {         \
+            __TEST_GENERIC_PRINT("Expression is false: "); \
+            __TEST_GENERIC_PRINT(test_var_a);              \
+            __TEST_GENERIC_PRINT(" " #COMPARISON " ");     \
+            __TEST_GENERIC_PRINT(test_var_b);              \
+            exit(EXIT_FAILURE);                            \
+        }                                                  \
+    } while (0)
+
+/** Assert that value <code>A</code> is equal to value <code>B</code>. */
+#define ASSERT_EQ(A, B) __TEST_GENERIC_ASSERTION(A, ==, B)
+
+/** Assert that value <code>A</code> is not equal to value <code>B</code>. */
+#define ASSERT_NE(A, B) __TEST_GENERIC_ASSERTION(A, !=, B)
+
+/** Assert that value <code>A</code> is greater than value <code>B</code>. */
+#define ASSERT_GT(A, B) __TEST_GENERIC_ASSERTION(A, >, B)
+
+/**
+ * Assert that value <code>A</code> is greater than or equal to value
+ * <code>B</code>.
+ */
+#define ASSERT_GE(A, B) __TEST_GENERIC_ASSERTION(A, >=, B)
+
+/** Assert that value <code>A</code> is less than value <code>B</code>. */
+#define ASSERT_LT(A, B) __TEST_GENERIC_ASSERTION(A, <, B)
+
+/**
+ * Assert that value <code>A</code> is less than or equal to value
+ * <code>B</code>.
+ */
+#define ASSERT_LE(A, B) __TEST_GENERIC_ASSERTION(A, <=, B)
 
 #endif
