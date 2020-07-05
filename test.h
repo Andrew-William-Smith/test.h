@@ -101,6 +101,9 @@
 /** Constructor priority for individual test functions. */
 #define __TEST_PRIORITY 102
 
+/** Exit status for a process containing a skipped test. */
+#define __TEST_SKIPPED_STATUS EXIT_FAILURE + 1
+
 /** Maximum number of bytes that a test failure message may occupy. */
 #define __TEST_MAX_MESSAGE_SIZE 1024
 
@@ -111,21 +114,25 @@
 /* Colours for terminal output.  May be suppressed by defining the symbol
  * TEST_MONOCHROME_OUTPUT. */
 #ifdef TEST_MONOCHROME_OUTPUT
-    #define __COLOUR_RED    ""
-    #define __COLOUR_GREEN  ""
-    #define __COLOUR_YELLOW ""
-    #define __COLOUR_BLUE   ""
-    #define __COLOUR_CYAN   ""
-    #define __COLOUR_BOLD   ""
-    #define __COLOUR_RESET  ""
+    #define __COLOUR_RED       ""
+    #define __COLOUR_GREEN     ""
+    #define __COLOUR_YELLOW    ""
+    #define __COLOUR_BLUE      ""
+    #define __COLOUR_CYAN      ""
+    #define __COLOUR_GRAY      ""
+    #define __COLOUR_BOLD_GRAY ""
+    #define __COLOUR_BOLD      ""
+    #define __COLOUR_RESET     ""
 #else
-    #define __COLOUR_RED    "\x1B[1;31m"
-    #define __COLOUR_GREEN  "\x1B[0;32m"
-    #define __COLOUR_YELLOW "\x1B[1;33m"
-    #define __COLOUR_BLUE   "\x1B[1;34m"
-    #define __COLOUR_CYAN   "\x1B[0;36m"
-    #define __COLOUR_BOLD   "\x1B[1m"
-    #define __COLOUR_RESET  "\x1B[0m"
+    #define __COLOUR_RED       "\x1B[1;31m"
+    #define __COLOUR_GREEN     "\x1B[0;32m"
+    #define __COLOUR_YELLOW    "\x1B[1;33m"
+    #define __COLOUR_BLUE      "\x1B[1;34m"
+    #define __COLOUR_CYAN      "\x1B[0;36m"
+    #define __COLOUR_GRAY      "\x1B[0;90m"
+    #define __COLOUR_BOLD_GRAY "\x1B[1;90m"
+    #define __COLOUR_BOLD      "\x1B[1m"
+    #define __COLOUR_RESET     "\x1B[0m"
 #endif
 
 
@@ -292,11 +299,33 @@ static void test_run(char *name,
     end_time = time(NULL);
 #endif
 
-    if (WIFEXITED(child_status) && WEXITSTATUS(child_status) == EXIT_SUCCESS) {
+    if (WIFEXITED(child_status)) {
+        int exit_status = WEXITSTATUS(child_status);
+        if (exit_status == EXIT_SUCCESS) {
 #ifndef TEST_OMIT_SUCCESSES
-        // Normal, successful test
-        printf(__COLOUR_GREEN "[PASS]" __TEST_DIAGNOSTICS);
+            // Normal, successful test
+            printf(__COLOUR_GREEN "[PASS]" __TEST_DIAGNOSTICS);
 #endif
+        } else if (exit_status == __TEST_SKIPPED_STATUS) {
+            // Skipped test
+            test_total_tests--;
+            printf(__COLOUR_BOLD_GRAY "[SKIP]" __COLOUR_GRAY " %s\n", name);
+            printf(__COLOUR_BOLD_GRAY "|" __COLOUR_GRAY " %s\n" __COLOUR_RESET,
+                    test_failure_message);
+        } else {
+            test_failed_tests++;
+            printf(__COLOUR_RED "[FAIL]" __TEST_DIAGNOSTICS);
+            if (exit_status == EXIT_FAILURE) {
+                // Test failed due to a failed assertion
+                printf(__COLOUR_RED "|" __COLOUR_RESET " %s\n",
+                        test_failure_message);
+            } else {
+                // Test failed for an unknown reason
+                printf(__COLOUR_RED "|" __COLOUR_RESET
+                        " Test failed with unrecognised exit status %d\n",
+                        exit_status);
+            }
+        }
     } else if (WIFSIGNALED(child_status)) {
         // Test aborted due to a signal
         test_failed_tests++;
@@ -305,11 +334,6 @@ static void test_run(char *name,
         printf(__COLOUR_YELLOW "|" __COLOUR_RESET " Test halted due to signal "
                 __COLOUR_YELLOW "sig%s" __COLOUR_RESET " (code %d)\n",
                 sys_signame[signum], signum);
-    } else {
-        // Test failed without signalling (i.e. due to a failed assertion)
-        test_failed_tests++;
-        printf(__COLOUR_RED "[FAIL]" __TEST_DIAGNOSTICS);
-        printf(__COLOUR_RED "|" __COLOUR_RESET " %s\n", test_failure_message);
     }
 
     // Test completed, tear down environment
@@ -363,6 +387,38 @@ static void test_run(char *name,
 
 /** Shorthand for fixture data member access.  Save yourself some typing! */
 #define T_ TEST ->
+
+/**
+ * Skip the test in whose body this directive appears and print a skipped status
+ * in the test report along with the specified message provided that the
+ * specified condition holds true.  Explanation messages are required for all
+ * skipped tests in order to enforce proper testing discipline.  This directive
+ * may be written anywhere in the body of a test; if the condition holds true,
+ * all assertions from that point forth will not be run.  Furthermore, a skipped
+ * test will not be counted toward the total test count printed in the test
+ * report.
+ */
+#define SKIP_IF(CONDITION, MESSAGE)                                   \
+    do {                                                              \
+        if (CONDITION) {                                              \
+            snprintf(TEST_MESSAGE, __TEST_MAX_MESSAGE_SIZE, MESSAGE); \
+            exit(__TEST_SKIPPED_STATUS);                              \
+        }                                                             \
+    } while (false)
+
+/**
+ * Unconditional version of the <code>SKIP_IF</code> directive.  Immediately
+ * skips the remainder of the test in which the directive appears.
+ *
+ * <pre>
+ * TEST(Skipped_test, Some_fixture) {
+ *     SKIP("Bug #1: Faulty assertion");
+ *     // Fix this!
+ *     ASSERT_TRUE(false);
+ * }
+ * </pre>
+ */
+#define SKIP(MESSAGE) SKIP_IF(true, MESSAGE)
 
 /**
  * Kickoff function for a test suite.  Initialises shared memory and output
@@ -603,7 +659,6 @@ __TEST_SNPRINTF_FUN(pointer, void *, "%p", val)
  */
 #define __TEST_GENERIC_ASSERTION(A, COMPARISON, B)                      \
     do {                                                                \
-        int test_last_pos;                                              \
         int test_running_pos = 0;                                       \
         typeof(A) test_var_a = (A);                                     \
         typeof(B) test_var_b = (B);                                     \

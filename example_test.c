@@ -56,9 +56,37 @@ TEST(Assert_true_succeeds, Simple_fixture) {
  * strongly recommended that you include one assertion in each of your tests for
  * proper test hygiene.  A test without any assertions will succeed by default.
  *
- * Now that we've demonstrated how easily fixtures and tests can be declared
- * (seriously, we just declared a full test suite in 5 lines of code!), let's
- * move on to a more complicated example.  The fixture Simple_fixture was
+ * Sometimes, you may wish to skip a test that is failing due to a known bug or
+ * platform incompatibility.  test.h provides the SKIP directive for this case,
+ * which allows you to prevent a test from executing and prints a skipped status
+ * message in the test report. */
+
+TEST(Skipped_test_does_not_run, Simple_fixture) {
+    SKIP("This test is skipped for demonstration purposes.");
+    // Fix this!
+    ASSERT_TRUE(0);
+}
+
+/* The message you write as the argument to the SKIP directive is very
+ * important, as it may help you and your collaborators to track the history of
+ * your test suite: think of it like a commit message for your tests, the more
+ * descriptive the better!  Note that the above test is unconditionally skipped,
+ * a function which is often useful when you are trying to track down bugs that
+ * cause test failures; however, sometimes you may wish to conditionally skip
+ * tests as well due to different testing configurations or other differences
+ * between testing environments.  For this situation, test.h provides the
+ * SKIP_IF directive, which will only skip a test if the condition specified in
+ * the directive evaluates to true. */
+
+TEST(Conditionally_skipped_test, Simple_fixture) {
+    SKIP_IF(0, "This skip directive will not run.");
+    ASSERT_TRUE(1);
+    SKIP_IF(1, "But this one will!");
+    ASSERT_TRUE(0);
+}
+
+/* Now that we've demonstrated how easily fixtures and tests can be declared,
+ * let's move on to a more complicated example.  The fixture Simple_fixture was
  * declared as EMPTY, meaning that it had no additional data associated with it;
  * however, it is often useful to declare some variables that can be shared
  * amongst the tests in a fixture.  Fixture data members can be indicated by
@@ -242,6 +270,10 @@ TEST(Segfault_does_not_crash, Simple_fixture) {
  *
  * ================================ BEGIN TEST RUN ================================
  * [PASS] (  0.000/  0s) Assert_true_succeeds
+ * [SKIP] Skipped_test_does_not_run
+ * | This test is skipped for demonstration purposes.
+ * [SKIP] Conditionally_skipped_test
+ * | But this one will!
  * [PASS] (  0.000/  0s) strlen_returns_correct_length
  * [PASS] (  0.000/  0s) strlen_correct_length_parameterised { TEST -> str = ""; TEST -> length = 0; }
  * [PASS] (  0.000/  0s) strlen_correct_length_parameterised { TEST -> str = "Hello!"; TEST -> length = 6; }
@@ -249,7 +281,7 @@ TEST(Segfault_does_not_crash, Simple_fixture) {
  * [PASS] (  0.000/  0s) strlen_correct_length_parameterised { TEST -> str = "One more parameter set"; TEST -> length = 22; }
  * [PASS] (  0.000/  0s) Copy_to_dynamic_string
  * [FAIL] (  0.000/  0s) All_assertions
- * | Assertion failed at example_test.c:218
+ * | Assertion failed at example_test.c:249
  * | Expression is true (false expected): 1
  * [HALT] (  0.000/  0s) Segfault_does_not_crash
  * | Test halted due to signal sigsegv (code 11)
