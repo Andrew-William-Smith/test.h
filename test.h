@@ -158,7 +158,7 @@
  * Explicitly defining these sections should ensure that linking succeeds. */
 #if _MSC_VER >= 1400
 #pragma section(_TEST_FIXTURE_SECTION, long, read)
-#pragma section(".CRT$XCU", long, read)
+#pragma section(_TEST_TEST_SECTION, long, read)
 #endif // _MSC_VER >= 1400
 
 #if _MSC_VER < 1400
@@ -181,7 +181,7 @@
  * snippet above is syntactically valid in MSVC, as it performs macro expansion
  * in pragma directives.
  */
-#define TEST_START data_seg(".CRT$XCU")
+#define TEST_START data_seg(_TEST_TEST_SECTION)
 
 #undef TEST_END
 /**
