@@ -4,7 +4,7 @@
 
 * Our first test
 Hello, and welcome to the ~test.h~ example test suite!
-This [[https://orgmode.org/worg/org-contrib/babel/intro.html][~org-babel~]] document contains a complete executable test suite that highlights all of the features provided by ~test.h~; if you would like to run the code in this document, open Emacs and run ~M-x org-babel-tangle~, then compile and run the output file ~example.c~.
+This [[https://orgmode.org/worg/org-contrib/babel/intro.html][org-babel]] document contains a complete executable test suite that highlights all of the features provided by ~test.h~; if you would like to run the code in this document, open Emacs and run ~M-x org-babel-tangle~, then compile and run the output file ~example.c~.
 Using the patterns demonstrated in this document, you should be able to start writing your own tests almost immediately!
 As mentioned in the header file documentation, the only real "dependency" required to use ~test.h~ is ~test.h~ itself, so without further ado...
 
@@ -48,7 +48,7 @@ On most platforms, those directives are a no-op; however, they are required to m
 To ensure that our test suites can run on as many platforms as possible, we'll maintain the following important rule:
 
 #+begin_quote
-All ~test.h~ directives that begin with ~FIXTURE~ must be placed inside a ~FIXTURE_START~​...​~FIXTURE_END~ block.
+All ~test.h~ directives that begin with ~FIXTURE~ must be placed inside a ~FIXTURE_START~ ... ~FIXTURE_END~ block.
 #+end_quote
 
 Now that we have a fixture, we can proceed to writing our first actual test.
@@ -77,7 +77,7 @@ Surrounding the ~TEST~ directive, we see two more ~#pragma~ directives that look
 These directives serve the same purpose, leading us to another rule of test-writing:
 
 #+begin_quote
-All ~test.h~ directives that /do not/ begin with ~FIXTURE~ must be placed inside a ~TEST_START~​...​~TEST_END~ block.
+All ~test.h~ directives that /do not/ begin with ~FIXTURE~ must be placed inside a ~TEST_START~ ... ~TEST_END~ block.
 #+end_quote
 
 * Using fixture data
@@ -201,10 +201,10 @@ TEST(Copy_to_dynamic_string, Lifecycle_fixture) {
 Assuming that the memory allocation succeeded (it's always good to check!), the above test should have passed, demonstrating that data was copied to the allocated region of memory.
 Now that we have demonstrated all of the moving parts involved in running a test, it may be helpful to give a brief listing of the entire test lifecycle:
 
-1. *~FIXTURE_SETUP~*: Fixture setup function, empty unless overridden.
-2. *~PCASE~*: Parameterised test setup function, if applicable.
-3. *~TEST~*​/​*~PTEST~*: Test runner function.
-4. *~FIXTURE_TEARDOWN~*: Fixture teardown function, empty unless overridden.
+1. ~FIXTURE_SETUP~: Fixture setup function, empty unless overridden.
+2. ~PCASE~: Parameterised test setup function, if applicable.
+3. ~TEST~ / ~PTEST~: Test runner function.
+4. ~FIXTURE_TEARDOWN~: Fixture teardown function, empty unless overridden.
 
 * Additional assertions
 You now know pretty much everything there is to know about testing your code with ~test.h~!
