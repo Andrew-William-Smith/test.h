@@ -1,0 +1,301 @@
+#+TITLE: test.h Example Suite
+#+AUTHOR: Andrew Smith
+#+PROPERTY: header-args :tangle "example.c"
+
+* Our first test
+Hello, and welcome to the ~test.h~ example test suite!
+This [[https://orgmode.org/worg/org-contrib/babel/intro.html][~org-babel~]] document contains a complete executable test suite that highlights all of the features provided by ~test.h~; if you would like to run the code in this document, open Emacs and run ~M-x org-babel-tangle~, then compile and run the output file ~example.c~.
+Using the patterns demonstrated in this document, you should be able to start writing your own tests almost immediately!
+As mentioned in the header file documentation, the only real "dependency" required to use ~test.h~ is ~test.h~ itself, so without further ado...
+
+#+begin_src c
+#include "test.h"
+#+end_src
+
+We'll also include ~string.h~ to provide us with some sample functions to test, and ~stdlib.h~ so we can work with the heap.
+Note that you don't have to include these or any headers other than ~test.h~ to use the framework: we're simply using them here to give us some functions to test.
+#+begin_src c
+#include <stdlib.h>
+#include <string.h>
+#+end_src
+
+Unfortunately, ~test.h~ doesn't get rid of /all/ boilerplate for you.
+In order to execute a test suite, you'll have to declare a ~main~ function, although it doesn't have to actually do anything.
+For the purposes of this test suite, we can simply leave it empty.
+
+#+begin_src c
+int main() {}
+#+end_src
+
+If we were to stop writing our test suite here, we would technically already have a complete test file: simply including ~test.h~ auto-registers some functions to run at program startup that will print a basic header and footer for the test run.
+However, that would be a pretty useless test suite, so let's actually add some tests!
+Before we write our first test, we'll need to begin by declaring a fixture.
+A *fixture* is a collection of tests that all have common requirements in order for them to run, such as shared setup or teardown code to /e.g./ initialise a data structure or allocate some dynamic memory.
+For now, we'll stick with the simplest possible fixture, a completely empty fixture with no special lifetime functions associated with it.
+
+#+begin_src c
+#pragma FIXTURE_START
+
+FIXTURE(Simple_fixture) EMPTY;
+
+#pragma FIXTURE_END
+#+end_src
+
+In the code above, we've declared a fixture called ~Simple_fixture~, followed by a modifier ~EMPTY~ to designate that there is no explicit data structure associated with the fixture.
+Note that all test fixture declarations must be ended with a semicolon, similar to ~struct~ declarations in more familiar C code.
+Reading the snippet, all of that seems simple enough, but what's going on with those ~#pragma~ directives?
+On most platforms, those directives are a no-op; however, they are required to maintain compatibility with older versions of [[https://docs.microsoft.com/en-us/cpp/?view=msvc-160][MSVC]], Microsoft's highly idiosyncratic C/C++ compiler.
+To ensure that our test suites can run on as many platforms as possible, we'll maintain the following important rule:
+
+#+begin_quote
+All ~test.h~ directives that begin with ~FIXTURE~ must be placed inside a ~FIXTURE_START~​...​~FIXTURE_END~ block.
+#+end_quote
+
+Now that we have a fixture, we can proceed to writing our first actual test.
+This is essentially nothing but a sanity test for the library and does not perform any useful checks, but it demonstrates the syntax of test declaration and assertions.
+
+#+begin_src c
+#pragma TEST_START
+
+TEST(Assert_true_succeeds, Simple_fixture) {
+    ASSERT_TRUE(1);
+}
+
+#pragma TEST_END
+#+end_src
+
+Let's break this test down piece by piece.
+We've declared a test called ~Assert_true_succeeds~ in the fixture that we previously defined, ~Simple_fixture~.
+Note that test fixtures must be declared before the tests contained within them.[fn:1]
+You'll notice that after the ~TEST~ directive, the rest of the test looks like a normal C function, which it in fact is under several layers of macros.
+The test contains a single *assertion*, or a statement that, if its condition is not met, will cause the test to fail.
+In this case, we assert that the value ~1~ is truthy, which is trivially true; as a result, this test succeeds!
+It should be noted that tests are not required to contain any assertions, although it is strongly recommended that you include at least one assertion in each of your tests for proper test hygiene.
+A test without any assertions will succeed by default.
+
+Surrounding the ~TEST~ directive, we see two more ~#pragma~ directives that look very similar to the fixture pragmas that we saw just a moment ago.
+These directives serve the same purpose, leading us to another rule of test-writing:
+
+#+begin_quote
+All ~test.h~ directives that /do not/ begin with ~FIXTURE~ must be placed inside a ~TEST_START~​...​~TEST_END~ block.
+#+end_quote
+
+* Using fixture data
+Now that we've demonstrated how easily fixtures and tests can be declared, let's move on to a more complicated example.
+The fixture ~Simple_fixture~ was declared as ~EMPTY~, meaning that it had no additional data associated with it; however, it is often useful to declare some variables that can be shared amongst the tests in a fixture.
+Fixture data members can be indicated by following the ~FIXTURE~ directive with a struct-style structure definition, as shown below.
+
+#+begin_src c
+#pragma FIXTURE_START
+
+FIXTURE(String_fixture) {
+    char *str;
+    size_t length;
+};
+
+#pragma FIXTURE_END
+#+end_src
+
+Here, we've omitted the ~EMPTY~ modifier in favour of two variables, denoting a string and its length, respectively.
+Now that we've declared these variables, we can access them in any test that belongs to ~String_fixture~ by way of the pointer ~TEST~, which is available in all test functions.
+In truth, the reason that fixture declarations look so much like structs is that they /are/ just structs, albeit ones with some additional macro overhead.
+~TEST~ is simply a pointer to an instance of the ~struct~ defined in the declaration of the fixture to which the test belongs, allowing full access to the fixture's data members as demonstrated in the following test.
+
+#+begin_src c
+#pragma TEST_START
+
+TEST(strlen_length_correct, String_fixture) {
+    // Assign some values to our data members.
+    TEST->str = "Hello!";
+    TEST->length = 6;
+    // Run some simple assertions to verify that things are working.
+    ASSERT_NON_NULL(TEST->str);
+    ASSERT_STREQ(TEST->str, "Hello!");
+    ASSERT_EQ(strlen(TEST->str), TEST->length, "%zu");
+}
+#+end_src
+
+In this test, we can see that the data members ~str~ and ~length~ from the fixture ~String_fixture~ are available inside of the test body by way of the pointer ~TEST~.
+Note that a new instance of the fixture ~struct~ is created for each test, so it is not possible to share data between tests without declaring the shared data outside of a test itself.
+This is for your own good, trust me.
+
+Furthermore, we demonstrate three more assertions provided by ~test.h~: ~ASSERT_NON_NULL~, ~ASSERT_STREQ~, and ~ASSERT_EQ~.
+~ASSERT_NON_NULL~ simply checks that a specified pointer has a value other than ~NULL~ (0), while ~ASSERT_STREQ~ checks that the contents of the two specified strings are identical.
+The final assertion, ~ASSERT_EQ~, checks that the specified values are equal, and if they are not, it displays a pretty-printed representation of both values using the specified ~printf~-style format string.
+All comparison-type assertions take a format argument, so you have full control over the way that your data is displayed in the case of failures.
+
+* Parameterised tests
+At this point, you may be wondering why we bothered to declare data members on fixture ~String_fixture~ at all, since we're not using them to do anything that can't be done with normal local variables.
+In this assertion you'd be correct (in other words, your test is still running), but allow me to immediately contradict you with one of the most powerful features of any unit testing framework, and one for which ~test.h~ has full support: parameterised tests.
+A *parameterised test* is a test that runs the exact same test code on different input values, or /parameters/, allowing you to vastly reduce the amount of duplicated code in your test suites.
+For example, let's say that we wanted to perform a test very similar to the previous one, but on a larger set of strings and lengths.
+We can begin to achieve this goal by declaring the common parameterised test function, as demonstrated below.
+
+#+begin_src c
+PTEST(strlen_parameterised, String_fixture) {
+    ASSERT_NON_NULL(T_ str);
+    ASSERT_EQ(strlen(T_ str), T_ length, "%zu");
+}
+#+end_src
+
+As you can see, a parameterised test function is declared very similarly to a normal test, with the only difference being that we substituted the ~TEST~ directive for ~PTEST~.
+However, we're not quite done with this test yet: if we were to compile and run our test suite at this point, we would not see any output for the parameterised test.
+To actually run our test, we need to provide it with some test data, which we can do by way of the ~PCASE~ directive.
+
+#+begin_src c
+PCASE(strlen_parameterised, String_fixture) { T_ str = "Hi!";    T_ length = 3; }
+PCASE(strlen_parameterised, String_fixture) { T_ str = "Hello";  T_ length = 5; }
+PCASE(strlen_parameterised, String_fixture) { T_ str = "salve!"; T_ length = 6; }
+
+#pragma TEST_END
+#+end_src
+
+~PCASE~ functions are run before the common parameterised test function (declared with ~PTEST~) and share a ~TEST~ pointer with the common function.
+They are most frequently used to set up this structure with the specific parameters for each test, and each ~PCASE~ is run and reported as if it were an independent test.
+Note that you can write any code in these blocks, not just member modifications, allowing more complex control over the test environment if necessary; however, assertions are not permitted inside ~PCASE~ functions and must be deferred to the corresponding ~PTEST~.
+
+Also, you may be wondering what on earth the ~T_~ symbol is.
+~T_~ is simply a shorthand for ~TEST->~ provided to reduce the amount of typing involved in referencing fixture data members.
+Handy, eh?
+
+* Fixture lifecycle functions
+Now let's talk about one final major feature of ~test.h~, one that I've been hand-waving away heretofore: fixture setup and teardown functions.
+Previously, I stated that by default, fixtures have no associated functions; this is not entirely true, as the functions are indeed generated, but they are empty by default.
+We can use two directives to override these useless setup and teardown functions, ~FIXTURE_SETUP~ and ~FIXTURE_TEARDOWN~, respectively.
+The setup function will be run before the parameter initialisation (for parameterised tests) and body of each test in the fixture, while the teardown function will be run after the test has finished, regardless of whether it passed or failed.
+If you want to specify custom functions for a fixture, you should do so immediately after the fixture declaration in order to avoid unexpected behaviour.
+To demonstrate this, let's declare a new fixture with some custom lifecycle functions.
+
+#+begin_src c
+#pragma FIXTURE_START
+
+FIXTURE(Lifecycle_fixture) {
+    char *str;
+};
+
+FIXTURE_SETUP(Lifecycle_fixture) {
+    T_ str = malloc(1024 * sizeof(char));
+}
+
+FIXTURE_TEARDOWN(Lifecycle_fixture) {
+    free(T_ str);
+}
+
+#pragma FIXTURE_END
+#+end_src
+
+With these lifecycle functions in place, all tests in ~Lifecycle_fixture~ will now have a 1024-byte string buffer allocated in dynamic memory that will be automatically freed once the test completes to avoid memory leaks.
+Let's test this out!
+
+#+begin_src c
+#pragma TEST_START
+
+TEST(Copy_to_dynamic_string, Lifecycle_fixture) {
+    ASSERT_NON_NULL(T_ str);
+    strcpy(T_ str, "Custom test lifecycles rock!");
+    ASSERT_STREQ(T_ str, "Custom test lifecycles rock!");
+    ASSERT_EQ(strlen(T_ str), (size_t) 28, "%zu");
+}
+#+end_src
+
+Assuming that the memory allocation succeeded (it's always good to check!), the above test should have passed, demonstrating that data was copied to the allocated region of memory.
+Now that we have demonstrated all of the moving parts involved in running a test, it may be helpful to give a brief listing of the entire test lifecycle:
+
+1. *~FIXTURE_SETUP~*: Fixture setup function, empty unless overridden.
+2. *~PCASE~*: Parameterised test setup function, if applicable.
+3. *~TEST~*​/​*~PTEST~*: Test runner function.
+4. *~FIXTURE_TEARDOWN~*: Fixture teardown function, empty unless overridden.
+
+* Additional assertions
+You now know pretty much everything there is to know about testing your code with ~test.h~!
+In addition to the assertions we have already seen, ~test.h~ provides a fairly large series of assertions to simplify common cases, a full list of which is as follows:
+
+| Prototype                   | Example                           | Success condition                                        |
+|-----------------------------+-----------------------------------+----------------------------------------------------------|
+| ~ASSERT_TRUE(PREDICATE)~    | ~ASSERT_TRUE(437 == 437);~        | The specified predicate is truthy (non-zero).            |
+| ~ASSERT_FALSE(PREDICATE)~   | ~ASSERT_FALSE(42 == 437);~        | The specified predicate is falsy (zero).                 |
+|-----------------------------+-----------------------------------+----------------------------------------------------------|
+| ~ASSERT_NULL(PTR)~          | ~ASSERT_NULL(NULL);~              | The specified pointer is ~NULL~ (usually zero).          |
+| ~ASSERT_NON_NULL(PTR)~      | ~ASSERT_NON_NULL((char *) 437);~  | The specified pointer is not ~NULL~ (usually non-zero).  |
+|-----------------------------+-----------------------------------+----------------------------------------------------------|
+| ~ASSERT_EQ(V1, V2, FORMAT)~ | ~ASSERT_EQ(437, 437, "%d");~      | The specified values ~V1~ and ~V2~ are equal (~==~).     |
+| ~ASSERT_NE(V1, V2, FORMAT)~ | ~ASSERT_NE(42, 437, "%d");~       | The specified values ~V1~ and ~V2~ are not equal (~!=~). |
+| ~ASSERT_GT(V1, V2, FORMAT)~ | ~ASSERT_GT(437, 42, "%d");~       | The value ~V1~ is strictly greater than (~>~) ~V2~.      |
+| ~ASSERT_GE(V1, V2, FORMAT)~ | ~ASSERT_GE(437, 437, "%d");~      | The value ~V1~ is greater than or equal to (~>=~) ~V2~.  |
+| ~ASSERT_LT(V1, V2, FORMAT)~ | ~ASSERT_LT(42, 437, "%d");~       | The value ~V1~ is strictly less than (~<~) ~V2~.         |
+| ~ASSERT_LE(V1, V2, FORMAT)~ | ~ASSERT_LE(437, 437, "%d");~      | The value ~V1~ is less than or equal to (~<=~) ~V2~.     |
+|-----------------------------+-----------------------------------+----------------------------------------------------------|
+| ~ASSERT_STREQ(S1, S2)~      | ~ASSERT_STREQ("Hello", "Hello");~ | All characters in the strings ~S1~ and ~S2~ are equal.   |
+| ~ASSERT_STRNE(S1, S2)~      | ~ASSERT_STRNE("Hi", "Hello");~    | A character in the strings ~S1~ and ~S2~ is not equal.   |
+
+Also, it now occurs to me that we haven't yet seen an example of what it looks like when a test fails!
+Let's demonstrate what that output looks like with the trivially false test below.
+
+#+begin_src c
+TEST(Failure_demo, Simple_fixture) {
+    ASSERT_EQ(42, 437, "%d");
+}
+#+end_src
+
+* Skipping tests
+We now know how to make tests fail, and I wish you the best of luck hereafter that /your/ tests may not.
+However, sometimes in the course of working on a project, you may conduct major refactors that can result in breaking changes to functions under test.
+As you work through your refactored functions to make them behave properly again, it can be useful to disable certain tests that either cause the tester to crash or simply clutter the test report with irrelevant failures.
+The most simple way to skip a test in ~test.h~ is to use the ~SKIP~ directive, which will prevent the test from running past the point at which it is written and print a skipped status in the test report.
+
+#+begin_src c
+TEST(Skipped_test, Simple_fixture) {
+    SKIP("This test is skipped for demonstration purposes.");
+    // FIXME: Make this test work again!
+    ASSERT_TRUE(0);
+}
+#+end_src
+
+The message you write as an argument to the ~SKIP~ directive is very important, as it may help you and your collaborators to track the history of your test suite: think of it like a commit message for your tests, the more descriptive the better!
+Note that the above test is unconditionally skipped, a function which is often useful when you are trying to track down bugs that cause test failures; however, sometimes you may wish to conditionally skip tests as well due to different testing configurations or other differences between testing environments.
+For this situation, ~test.h~ provides the ~SKIP_IF~ directive, which will only skip a test if the condition specified in the directive evaluates to a truthy value.
+
+#+begin_src c
+TEST(Conditionally_skipped_test, Simple_fixture) {
+    SKIP_IF(0, "This skip directive will not run.");
+    ASSERT_TRUE(1);
+    SKIP_IF(1, "But this one will!");
+    ASSERT_TRUE(0);
+}
+
+#pragma TEST_END
+#+end_src
+
+* Conclusion
+That's it!
+You're now fully ready to test your code using ~test.h~, making use of all of its features to make your testing life as simple and frictionless as possible.
+As a final note, a transcript of a run of this file as printed to the console is given below; on Unix-like systems, this transcript would be written to the terminal in colour, but since Windows does not support [[https://en.wikipedia.org/wiki/ANSI_escape_code][ANSI escape sequences]], test output is monochrome on that platform.
+
+#+begin_src txt :tangle no
+================================ BEGIN TEST RUN ================================
+[       PASS ] (  0.000/  0s) Assert_true_succeeds
+[       PASS ] (  0.000/  0s) strlen_length_correct
+[       PASS ] (  0.000/  0s) strlen_parameterised (L48)
+[       PASS ] (  0.000/  0s) strlen_parameterised (L49)
+[       PASS ] (  0.000/  0s) strlen_parameterised (L50)
+[       PASS ] (  0.000/  0s) Copy_to_dynamic_string
+[ START      ] Failure_demo
+Assertion failed! (42) == (437)
+    Value 1: 42
+    Value 2: 437
+File: example.c:80
+[       FAIL ] (  0.000/  0s) Failure_demo
+[       SKIP ] Skipped_test: This test is skipped for demonstration purposes.
+[       SKIP ] Conditionally_skipped_test: But this one will!
+
+================================= TEST SUMMARY =================================
+Test(s) passed: 6
+Test(s) failed: 1
+Test(s) skipped: 2
+#+end_src
+
+Now, enough reading: *go forth and test your code!*
+
+[fn:1] OK, this is technically not the full truth: you /can/ forward-declare test fixtures if for some reason you want to, although it's not the simplest of processes and may make your test suite pretty unreadable.
+~test.h~ performs name mangling on all user-specified identifiers to provide a convenient syntax for common use cases, and no guarantees are provided that the mangled forms will be stable between versions of the library.
+It is thus very highly recommended that you simply declare your fixtures before your tests to avoid any incompatibilities.
